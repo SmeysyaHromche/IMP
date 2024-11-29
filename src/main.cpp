@@ -4,7 +4,7 @@
 *********/
 
 #include <Wire.h>
-#include <../lib/Adafruit-GFX-Library/Adafruit_GFX.h>
+#include <../lib/Adafruit-GFX/Adafruit_GFX.h>
 #include <../lib/Adafruit_SSD1306/Adafruit_SSD1306.h>
 #include <../lib/Adafruit_VL53L0X/src/Adafruit_VL53L0X.h>
 
