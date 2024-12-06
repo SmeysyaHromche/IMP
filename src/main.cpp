@@ -33,42 +33,150 @@ enum Dimension{
   CM=1,
   M=2
 };
-Dimension actual_dimension = MM;
+int actual_dimension = MM;
+float min_laser_output = 0.0;
+float max_laser_output = 0.0;
 
 // encoder
-#define ENCODER_CLK 14  // pin CLK for detect right rotation  (GPIO_14)
-#define ENCODER_DT 27    // GPIO_27 for detect left rotation   (GPIO 27)
-#define ENCODER_SW 16   // GPIO_16 for detect press bottan    (GPIO 16)
-#define ENCODER_ROTATE_CNT_MIN 0
-#define ENCODER_ROTATE_CNT_MAX 2
+#define ENCODER_CLK 14  // GPIO_14
+#define ENCODER_DT 27   // GPIO_27
+#define ENCODER_SW 16   // GPIO_16
 volatile int ecnoder_rotate_cnt = 0;
 volatile int clkState;
 volatile int dtState;
 volatile int clkStateLast = HIGH;
-volatile int buttonState;
-volatile unsigned long buttonPressTimeLast = 0;
-int buttonStateLast = HIGH;
-volatile int mixin = 0;
+
+int buttonState;
+unsigned long buttonPressTimeLast = 0;
+bool buttonPressed = false;
+int mixin = 0;
+
+enum MenuTools{
+  StatisticTool = 0,
+  MixinTool = 1,
+  GoOutTool= 2,
+  MenuTool = 1000,
+};
+int menu_tool = MenuTool;
+
+/**
+ * @brief Transform number in correct range by base division
+ * 
+ * @param num input number
+ * @param base base of division
+ * @return transformed number
+ */
+int set_num_in_correct_range(int num, int base){
+  int aux = num % base;
+  if(aux < 0){
+    aux+=base;
+  }
+  return aux;
+}
 
 // programm core
+/**
+ * @brief Menu with selection tools
+ * 
+ */
+void menu_display(){
+  if(buttonPressed){  // check choosing of tools
+    menu_tool = set_num_in_correct_range(ecnoder_rotate_cnt, 3);
+    buttonPressed = false;
+    ecnoder_rotate_cnt = 0;
+    return;
+  }
+  app_display.clearDisplay();
+  app_display.setCursor(40, 10);
+  app_display.setTextColor(WHITE);
+  app_display.println(F("MENU"));
+  app_display.setCursor(0, 22);
+  int choose = set_num_in_correct_range(ecnoder_rotate_cnt, 3);
+  if(choose == StatisticTool){
+    app_display.print(F(">"));
+  }
+  app_display.print(F("Statistics"));
+  app_display.setCursor(0, 34);
+  if(choose == MixinTool){
+    app_display.print(F(">"));
+  }
+  app_display.print(F("Mixin"));
+  app_display.setCursor(0, 46);
+  if(choose == GoOutTool){
+    app_display.print(F(">"));
+  }
+  app_display.print(F("Go out"));
+  app_display.display();
+}
+
+/**
+ * @brief Menu tools for display sensor statistics
+ * 
+ */
+void statistic_tool(){
+  if(buttonPressed){  // go out from menu
+    buttonPressed = false;
+    execute_status = true;
+  }
+  // statistics
+  app_display.clearDisplay();
+  app_display.setCursor(30, 10);
+  app_display.setTextColor(WHITE);
+  app_display.println(F("STATISTICS"));
+  app_display.setCursor(0, 22);
+  app_display.print(F("Min (mm):"));
+  app_display.println(min_laser_output);
+  app_display.setCursor(0, 34);
+  app_display.print(F("Max (mm):"));
+  app_display.println(max_laser_output);
+  app_display.setCursor(0, 46);
+  app_display.display();
+}
+
+/**
+ * @brief Menu tools for set mixin of original laser output
+ * 
+ */
+void mixin_tool(){
+  if(buttonPressed){
+    mixin = ecnoder_rotate_cnt;
+    buttonPressed = false;
+    execute_status = true;
+  }
+  app_display.clearDisplay();
+  app_display.setCursor(40, 10);
+  app_display.setTextColor(WHITE);
+  app_display.println(F("MIXIN"));
+  app_display.setCursor(0, 22);
+  app_display.print(F("Prev (mm):"));
+  app_display.println(mixin);
+  app_display.setCursor(0, 34);
+  app_display.print(F("New (mm):"));
+  app_display.println(ecnoder_rotate_cnt);
+  app_display.setCursor(0, 46);
+  app_display.display();
+}
 
 /**
  * @brief Activate settings menu mode for metadata of application
  * 
  */
 void settings_menu(){
-  app_display.clearDisplay();
-  app_display.setCursor(40, 10);
-  app_display.setTextColor(WHITE);
-  app_display.println("MENU");
-  app_display.setCursor(0, 25);
-  app_display.print(F("Prev mixin(mm): "));
-  app_display.println(mixin);
-  app_display.setCursor(0, 40);
-  app_display.print(F("Reset mixin(mm): "));
-  app_display.println(ecnoder_rotate_cnt);
-  app_display.display();
-  delay(100);
+  switch(menu_tool){
+    case MixinTool:
+      mixin_tool();
+      break;
+    case StatisticTool:
+      statistic_tool();
+      break;
+    case GoOutTool:
+      execute_status = true;
+      break;
+    case MenuTool:
+    default:
+      menu_display();
+      break;
+  }
 }
 
 /**
@@ -76,21 +184,26 @@ void settings_menu(){
  * 
  */
 void laser_sensor_display_output(){
-  if(ecnoder_rotate_cnt > ENCODER_ROTATE_CNT_MAX){
-    ecnoder_rotate_cnt = ENCODER_ROTATE_CNT_MIN;
-  }
-  else if(ecnoder_rotate_cnt < ENCODER_ROTATE_CNT_MIN){
-    ecnoder_rotate_cnt = ENCODER_ROTATE_CNT_MAX;
-  }
-  actual_dimension = (Dimension)ecnoder_rotate_cnt;
-  Serial.println(actual_dimension);
   laser_sensor.rangingTest(&laser_sensor_output);  // read data
+  
   app_display.clearDisplay();
-  app_display.setCursor(0, 10);
+  app_display.setCursor(30, 10);
   app_display.setTextColor(WHITE);
+  app_display.println(F("DETECTION"));
+  app_display.setCursor(0, 22);
   if(laser_sensor_output.RangeStatus != 4){
     output = laser_sensor_output.RangeMilliMeter + mixin;
-    switch (actual_dimension)
+    
+    // store statistic
+    if(output > max_laser_output){
+      max_laser_output = output;
+    }
+    else if(output < min_laser_output){
+      min_laser_output = output;
+    }
+    
+    actual_dimension = set_num_in_correct_range(ecnoder_rotate_cnt, 3);
+    switch (actual_dimension)  // set correct dimension
     {
     case M:
       app_display.print(F("Distance (m):"));
@@ -110,17 +223,15 @@ void laser_sensor_display_output(){
     }
     app_display.println(output);
   }
-  else{
+  else{  // undetection by out of range sensor
     app_display.println("Out of range");
-    Serial.println(" out of range ");
   }
   app_display.display();
-  delay(100);
 }
 
 
 /**
- * @brief Answer on encoder right rotation interrupt
+ * @brief Catch on encoder rotation interrupt
  * 
  */
 void catch_encoder_rotate(){
@@ -128,42 +239,15 @@ void catch_encoder_rotate(){
   dtState = digitalRead(ENCODER_DT);
   if (clkState != clkStateLast){
     if(clkState == HIGH){
-      if (dtState != clkState) {
-        Serial.println(" LEFT ");
+      if (dtState != clkState) {  // rotate to left
         ecnoder_rotate_cnt--;  
       } 
-      else{
-        Serial.println(" RIGHT "); 
+      else{  // rotate to right
         ecnoder_rotate_cnt++;
       }
     }
     clkStateLast = clkState;
   }
-}
-
-
-/**
- * @brief Answer on encoder press button. Change global status.
- * 
- */
-void catch_encoder_press(){
-  /*Serial.println(F("Encoder pressed 1."));
-  //buttonPressTime = millis();
-  buttonState = digitalRead(ENCODER_SW);
-  if(buttonState == LOW){
-    Serial.println(F("Encoder pressed 2."));
-    if(buttonPressTime-buttonPressTimeLast > 50){
-      execute_status = !execute_status;
-      if(execute_status){
-        mixin = ecnoder_rotate_cnt;
-        ecnoder_rotate_cnt = (int)actual_dimension;
-      }
-      else{
-        ecnoder_rotate_cnt = 0;
-      }
-    }
-    buttonPressTimeLast = buttonPressTime;
-  }*/
 }
 
 
@@ -202,7 +286,6 @@ void setup() {
 
   // catch encoder interruption
   attachInterrupt(digitalPinToInterrupt(ENCODER_CLK), catch_encoder_rotate, CHANGE);
-  //attachInterrupt(digitalPinToInterrupt(ENCODER_SW), catch_encoder_press, FALLING);
 }
 
 /**
@@ -210,26 +293,27 @@ void setup() {
  * 
  */
 void loop() {
+  // catch press button
   buttonState = digitalRead(ENCODER_SW);
   if(millis()-buttonPressTimeLast > 500){
-      Serial.println(F("Encoder pressed 1."));
       if(buttonState == LOW){
-        Serial.println(F("Encoder pressed 1."));
-        execute_status = !execute_status;
-        if(execute_status){
-          mixin = ecnoder_rotate_cnt;
-          ecnoder_rotate_cnt = (int)actual_dimension;
+        if(execute_status){  // from laser to menu
+          buttonPressed = false;
+          menu_tool = MenuTool;
+          execute_status = false;
         }
-        else{
-          ecnoder_rotate_cnt = 0;
+        else{  // menu
+          buttonPressed = true;
         }
         buttonPressTimeLast = millis();
     }
   }
-  if(execute_status){
+
+  
+  if(execute_status){  // laser detection execute
     laser_sensor_display_output();
   }
-  else{
+  else{  // menu execute
     settings_menu();
   }
 }
