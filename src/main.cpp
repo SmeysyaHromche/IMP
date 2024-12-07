@@ -2,7 +2,7 @@
  * @file main.cpp
  * @author Myron Kukhta (xkukht01)
  * @brief Distance measurement by laser sensor
- * @version 0.1
+ * @version 1.0
  * @date 2024-12-15
  * 
  * @copyright Copyright (c) 2024
@@ -34,13 +34,13 @@ enum Dimension{
   M=2
 };
 int actual_dimension = MM;
-float min_laser_output = 0.0;
-float max_laser_output = 0.0;
+float min_laser_output = 1000.0;
+float max_laser_output = -1000.0;
 
 // encoder
-#define ENCODER_CLK 14  // GPIO_14
-#define ENCODER_DT 27   // GPIO_27
-#define ENCODER_SW 16   // GPIO_16
+#define ENCODER_CLK 14  // IO_14
+#define ENCODER_DT 27   // IO_27
+#define ENCODER_SW 16   // IO_16
 volatile int ecnoder_rotate_cnt = 0;
 volatile int clkState;
 volatile int dtState;
@@ -77,7 +77,6 @@ int set_num_in_correct_range(int num, int base){
 // programm core
 /**
  * @brief Menu with selection tools
- * 
  */
 void menu_display(){
   if(buttonPressed){  // check choosing of tools
@@ -111,7 +110,6 @@ void menu_display(){
 
 /**
  * @brief Menu tools for display sensor statistics
- * 
  */
 void statistic_tool(){
   if(buttonPressed){  // go out from menu
@@ -135,7 +133,6 @@ void statistic_tool(){
 
 /**
  * @brief Menu tools for set mixin of original laser output
- * 
  */
 void mixin_tool(){
   if(buttonPressed){
@@ -159,7 +156,6 @@ void mixin_tool(){
 
 /**
  * @brief Activate settings menu mode for metadata of application
- * 
  */
 void settings_menu(){
   switch(menu_tool){
@@ -181,7 +177,6 @@ void settings_menu(){
 
 /**
  * @brief Write laser sensor output on display desk
- * 
  */
 void laser_sensor_display_output(){
   laser_sensor.rangingTest(&laser_sensor_output);  // read data
@@ -232,7 +227,6 @@ void laser_sensor_display_output(){
 
 /**
  * @brief Catch on encoder rotation interrupt
- * 
  */
 void catch_encoder_rotate(){
   clkState = digitalRead(ENCODER_CLK);
@@ -252,8 +246,7 @@ void catch_encoder_rotate(){
 
 
 /**
- * @brief Init pre-run setup of applications sub-devices
- * 
+ * @brief Init pre-run setup of application
  */
 void setup() {
   Serial.begin(115200);  // init serial
@@ -279,10 +272,10 @@ void setup() {
     Serial.println(F("VL53LOX is OK."));
   }
 
-  // init GPIO (encoder output / esp input)
+  // init encoder and ESP connection
   pinMode(ENCODER_CLK, INPUT);
   pinMode(ENCODER_DT, INPUT);
-  pinMode(ENCODER_SW, INPUT_PULLUP);  // button in default is unpressed
+  pinMode(ENCODER_SW, INPUT_PULLUP);
 
   // catch encoder interruption
   attachInterrupt(digitalPinToInterrupt(ENCODER_CLK), catch_encoder_rotate, CHANGE);
@@ -308,7 +301,6 @@ void loop() {
         buttonPressTimeLast = millis();
     }
   }
-
   
   if(execute_status){  // laser detection execute
     laser_sensor_display_output();
